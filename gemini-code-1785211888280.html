@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>Gemini 스트리밍 테스트</title>
+</head>
+<body>
+  <h1>Gemini AI 질문하기</h1>
+  <input type="text" id="promptInput" placeholder="질문을 입력하세요..." style="width: 300px;">
+  <button onclick="handleSend()">전송</button>
+
+  <h3>응답 결과:</h3>
+  <div id="output" style="white-space: pre-wrap; background: #f4f4f4; padding: 10px; min-height: 100px;"></div>
+
+  <script>
+    // 질문 전송 처리
+    async function handleSend() {
+      const prompt = document.getElementById('promptInput').value;
+      const outputDiv = document.getElementById('output');
+      outputDiv.innerText = '생성 중...';
+
+      try {
+        await streamGemini(prompt, (chunk, accumulatedText) => {
+          outputDiv.innerText = accumulatedText;
+        });
+      } catch (err) {
+        outputDiv.innerText = '에러 발생: ' + err.message;
+      }
+    }
+
+    // [제공해주신 클라이언트 코드]
+    async function streamGemini(userPrompt, onChunkReceived) {
+      const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: userPrompt }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '스트리밍 실패');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let fullText = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        fullText += chunk;
+
+        if (onChunkReceived) {
+          onChunkReceived(chunk, fullText);
+        }
+      }
+
+      return fullText;
+    }
+  </script>
+</body>
+</html>
